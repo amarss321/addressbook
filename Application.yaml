@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: project-k8s
-        image: tampoohoonm/project-k8s:latest
+        image: 590184028154.dkr.ecr.us-west-2.amazonaws.com/adreesbook:latest
         ports:
         - containerPort: 8080  
 
