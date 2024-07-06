@@ -79,3 +79,21 @@ pipeline {
 }
 
 }
+---------------------------------------------------------------------
+
+
+
+    pipeline{
+    agent any
+    stages{
+        stage('input try'){
+            steps{
+                script{
+                    def approval = input id: 'Deploy', message: 'Approve for deployment', submitter: 'admin'
+                }
+                echo "deploying"
+            }
+            
+        }
+    }
+}
