@@ -1,18 +1,19 @@
 pipeline {
     agent any
     options {
-        buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '20', numToKeepStr: '2')
+     buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '30', numToKeepStr: '2')
+     timeout(30)
     }
     tools {
         maven 'Maven'
     }
     environment {
         cred = credentials('aws-cred')
-        DOCKER_IMAGE = "590184028154.dkr.ecr.us-west-2.amazonaws.com/addressbook"
-        DOCKER_TAG = "$BUILD_NUMBER"
+        IMAGE_NAME = "654654166577.dkr.ecr.us-east-1.amazonaws.com/super-project"
+        IMAGE_VERSION = "$BUILD_NUMBER"
     }
     stages {
-        stage('Checkout') {
+        stage('Checkout From GitHub') {
             steps {
                 checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/amarss321/addressbook.git']])
             }
@@ -21,8 +22,8 @@ pipeline {
             steps{
                 script{
                     def mvn = tool 'Maven';
-                    withSonarQubeEnv(installationName: 'sonar') {
-                        sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.projectKey=addressbook"
+                    withSonarQubeEnv(installationName: 'sonar-server') {
+                        sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.projectKey=super-project"
                     }
                 }
             }
@@ -37,13 +38,13 @@ pipeline {
                 nexusArtifactUploader(
                     nexusVersion: 'nexus3',
                     protocol: 'http',
-                    nexusUrl: '52.42.195.62:80',
+                    nexusUrl: '44.201.110.219:8081',
                     groupId: 'addressbook',
                     version: '2.0-SNAPSHOT',
                     repository: 'maven-snapshots',
                     credentialsId: 'nexus-cred',
                     artifacts: [
-                        [artifactId: 'TEST',
+                        [artifactId: 'DEV',
                         classifier: '',
                         file: 'target/addressbook-2.0.war',
                         type: 'war']
@@ -51,49 +52,43 @@ pipeline {
                 )
             }
         }
-        stage('Docker image Build'){
+        stage('Docker Image Build'){
             steps{
-                sh 'docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .'
+                sh 'docker build -t ${IMAGE_NAME}:v.1.${IMAGE_VERSION} .'
+                sh 'docker images'
             }
         }
-        stage('Docker image Push to ECR'){
+        stage('Push Docker Image to AWS ECR'){
             steps{
                 sh '''
-                    aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 590184028154.dkr.ecr.us-west-2.amazonaws.com
-                    docker tag  ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
-                    docker push ${DOCKER_IMAGE}:latest
+                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 654654166577.dkr.ecr.us-east-1.amazonaws.com
+                    docker tag ${IMAGE_NAME}:v.1.${IMAGE_VERSION} ${IMAGE_NAME}:latest
+                    docker push ${IMAGE_NAME}:latest
                 '''
+            }
+        }
+        stage('Deployin to eks'){
+            steps{
+                script{
+                    input id: 'Deploy', message: 'All steps completed Now ready to deploy In EKS Cluster', submitter: 'admin'
+                }
+                sh 'kubectl version --client'
+                sh 'aws eks update-kubeconfig --region us-east-1 --name eks-workshop'
+                sh 'kubectl apply -f Application.yaml'
+                sh 'kubectl get all -o wide'
             }
         }
     }
     post {
         always {
-            echo 'Job compeleted'
-    }
+            echo 'Job Compeleted'
+        }
         success {
-            echo 'Job successfully created image is pushed to ECR'
-    }
+            echo 'Job Successfully Compeleted'
+        }
         failure {
-            echo 'job Failed'
-    }
-}
-
-}
----------------------------------------------------------------------
-
-
-
-    pipeline{
-    agent any
-    stages{
-        stage('input try'){
-            steps{
-                script{
-                    def approval = input id: 'Deploy', message: 'Approve for deployment', submitter: 'admin'
-                }
-                echo "deploying"
-            }
-            
+            echo 'Job Failed'
         }
     }
+
 }
